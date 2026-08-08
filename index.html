@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Oasis — TSOE Console</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="console" id="console">
+    <header class="topbar">
+      <span class="dot"></span><strong>OASIS</strong><span class="muted">TSOE Console</span>
+      <label class="load">Load JS <input id="fileInput" type="file" accept=".js,text/javascript"></label>
+    </header>
+    <section id="output" class="output" aria-live="polite"></section>
+    <form id="commandForm" class="command">
+      <span class="prompt">tsoe&gt;</span>
+      <input id="commandInput" autocomplete="off" autofocus spellcheck="false" placeholder="type help or run your app...">
+    </form>
+  </main>
+  <script src="oasis.js"></script>
+</body>
+</html>
