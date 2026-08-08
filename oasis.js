@@ -19,32 +19,57 @@
     alert: (text) => print(`[TSOE ALERT] ${text}`, 'info'),
     clear: () => { output.innerHTML = ''; },
     sleep: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
+    wait: (ms) => new Promise(resolve => setTimeout(resolve, ms)),
     app: {
       name: 'Oasis App',
       close: () => print('[TSOE] app closed', 'system')
     }
   };
 
-  window.tsoe = tsoe;
+  // Make Oasis feel like a normal JavaScript environment while exposing TSOE APIs.
+  const oasisConsole = {
+    log: (...args) => print(args.join(' ')),
+    info: (...args) => print(args.join(' '), 'info'),
+    warn: (...args) => print(args.join(' '), 'system'),
+    error: (...args) => print(args.join(' '), 'error'),
+    clear: () => tsoe.clear()
+  };
 
-  function execute(code, filename = 'script.js') {
+  window.tsoe = tsoe;
+  window.oasis = null;
+
+  async function execute(code, filename = 'script.js') {
     print(`$ run ${filename}`, 'system');
+
     try {
-      const runner = new Function('tsoe', 'oasis', `"use strict";\n${code}`);
-      const result = runner(tsoe, window.Oasis);
-      if (result instanceof Promise) {
-        result.catch(err => print(`Runtime error: ${err.message}`, 'error'));
-      }
+      // AsyncFunction executes real JavaScript and also supports top-level await.
+      const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor;
+      const runner = new AsyncFunction(
+        'tsoe',
+        'oasis',
+        'console',
+        `"use strict";\n${code}`
+      );
+
+      const result = await runner(tsoe, window.Oasis, oasisConsole);
+      if (result !== undefined) print(result);
       print(`[OK] ${filename} executed`, 'success');
+      return result;
     } catch (err) {
-      print(`Runtime error: ${err.message}`, 'error');
+      print(`Runtime error: ${err && err.stack ? err.stack : err}`, 'error');
+      return undefined;
     }
   }
 
   async function loadFile(file) {
     if (!file) return;
-    const code = await file.text();
-    execute(code, file.name);
+    try {
+      const code = await file.text();
+      await execute(code, file.name);
+    } catch (err) {
+      print(`File error: ${err.message}`, 'error');
+    }
+    fileInput.value = '';
   }
 
   window.Oasis = {
@@ -53,8 +78,13 @@
     load: loadFile,
     print,
     clear: tsoe.clear,
-    tsoe
+    tsoe,
+    wait: tsoe.wait,
+    sleep: tsoe.sleep,
+    console: oasisConsole
   };
+
+  window.oasis = window.Oasis;
 
   const commands = {
     help() {
@@ -62,39 +92,43 @@
       print('Commands:');
       print('  help              Show this help');
       print('  clear             Clear the console');
-      print('  run <code>        Run JavaScript as TSOE');
+      print('  run <JavaScript>  Run JavaScript');
       print('  version           Show Oasis/TSOE version');
       print('  load              Pick a .js file to run');
       print('');
-      print('JS files receive the global tsoe API.');
+      print('The console accepts normal JavaScript.');
+      print('Example: console.log("Hello");');
+      print('Example: await wait(1000); console.log("Done");');
     },
     clear() { tsoe.clear(); },
-    version() { print('Oasis 1.0 | TSOE 1.0', 'success'); },
+    version() { print('Oasis 1.1 | TSOE 1.0', 'success'); },
     load() { fileInput.click(); }
   };
 
-  form.addEventListener('submit', event => {
+  form.addEventListener('submit', async event => {
     event.preventDefault();
     const value = input.value.trim();
     input.value = '';
     if (!value) return;
 
     print(`tsoe> ${value}`, 'system');
-    const [command, ...rest] = value.split(' ');
-    const arg = rest.join(' ');
+    const firstSpace = value.indexOf(' ');
+    const command = firstSpace === -1 ? value : value.slice(0, firstSpace);
+    const arg = firstSpace === -1 ? '' : value.slice(firstSpace + 1);
 
     if (commands[command]) {
       commands[command](arg);
     } else if (command === 'run') {
-      execute(arg || 'tsoe.print("Hello from TSOE!");', 'console.js');
+      await execute(arg || 'console.log("Hello from JavaScript!");', 'console.js');
     } else {
-      print(`Unknown command: ${command}. Type help.`, 'error');
+      // Anything that is not an Oasis command is treated as JavaScript.
+      await execute(value, 'console.js');
     }
   });
 
   fileInput.addEventListener('change', () => loadFile(fileInput.files[0]));
 
   print('OASIS TSOE CONSOLE', 'info');
-  print('The Simulator OS Elsewhere runtime is ready.', 'system');
-  print('Type "help" to get started.', 'system');
+  print('JavaScript runtime is ready.', 'system');
+  print('Type JavaScript directly, or type "help".', 'system');
 })();
